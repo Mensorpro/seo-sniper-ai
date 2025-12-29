@@ -1,0 +1,111 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
+// enough when changing adapters.
+// See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
+datasource db {
+  provider = "sqlite"
+  url      = "file:dev.sqlite"
+}
+
+model Session {
+  id            String    @id
+  shop          String
+  state         String
+  isOnline      Boolean   @default(false)
+  scope         String?
+  expires       DateTime?
+  accessToken   String
+  userId        BigInt?
+  firstName     String?
+  lastName      String?
+  email         String?
+  accountOwner  Boolean   @default(false)
+  locale        String?
+  collaborator  Boolean?  @default(false)
+  emailVerified Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+}
+
+// Analytics: Track each scan/processing run
+model ScanHistory {
+  id              String   @id @default(uuid())
+  shop            String
+  startedAt       DateTime @default(now())
+  completedAt     DateTime?
+  totalProducts   Int      @default(0)
+  totalImages     Int      @default(0)
+  imagesProcessed Int      @default(0)
+  imagesSkipped   Int      @default(0)
+  imagesFailed    Int      @default(0)
+  status          String   @default("running") // running, completed, failed
+  forceAll        Boolean  @default(false)
+  
+  processedImages ProcessedImage[]
+}
+
+// Track individual image processing
+model ProcessedImage {
+  id            String   @id @default(uuid())
+  scanId        String
+  productId     String
+  productTitle  String
+  imageId       String
+  imageUrl      String
+  oldAltText    String?
+  newAltText    String
+  processedAt   DateTime @default(now())
+  status        String   // success, failed, skipped
+  errorMessage  String?
+  
+  scan          ScanHistory @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  
+  @@index([scanId])
+  @@index([productId])
+}
+
+// User settings and preferences
+model AppSettings {
+  id              String   @id @default(uuid())
+  shop            String   @unique
+  
+  // Alt-text customization
+  altTextStyle    String   @default("professional") // professional, casual, technical, creative
+  altTextLength   String   @default("medium") // short(60), medium(100), long(125)
+  customPrompt    String?
+  
+  // Processing options
+  batchSize       Int      @default(3)
+  autoRetry       Boolean  @default(true)
+  maxRetries      Int      @default(3)
+  
+  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now())
+}
+
+// Failed jobs queue for retry
+model FailedJob {
+  id            String   @id @default(uuid())
+  shop          String
+  productId     String
+  productTitle  String
+  imageId       String
+  imageUrl      String
+  errorMessage  String
+  retryCount    Int      @default(0)
+  maxRetries    Int      @default(3)
+  nextRetryAt   DateTime?
+  createdAt     DateTime @default(now())
+  lastAttemptAt DateTime @default(now())
+  status        String   @default("pending") // pending, retrying, failed_permanent
+  
+  @@index([shop])
+  @@index([status])
+  @@index([nextRetryAt])
+}
